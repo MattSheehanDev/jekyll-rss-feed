@@ -17,23 +17,45 @@
 # Copyright Matt Sheehan 2014
 
 module Jekyll
-	class Feed < Page; end
 
+	# Generator
+	# Creates rss feed pages
 	class Rss < Generator
 		priority :low
 		safe true
 
 
 		def generate(site)
+			# create feed page and add to static files
+			page = Feed.new(site, site.dest, "/feeds/", "rss.xml")
+			site.static_files << page
+		end
+
+	end
+
+
+	# Rss Feed Page
+	class Feed < StaticFile
+		def initialize(site, base, dir, name)
+			super(site, base, dir, name, nil)
+		end
+
+		def write(dest)
 			require "rss"
 
-			title = site.config["rss_title"] || ""
-			author = site.config["rss_author"] || ""
-			description = site.config["rss_description"] || ""
-			link = site.config["rss_link"] || ""
-			date = site.posts.map { |post| post.date }.max
+			# create directory if doesn't exist
+			dirpath = File.join(dest, @dir)
+			FileUtils.mkdir_p(dirpath)
 
 
+			# configs
+			title = @site.config["rss_title"] || ""
+			author = @site.config["rss_author"] || ""
+			description = @site.config["rss_description"] || ""
+			link = @site.config["rss_link"] || ""
+			date = @site.posts.map { |post| post.date }.max
+
+			# write rss
 			rss = RSS::Maker.make("2.0") do |rss|
 				rss.channel.title = title
 				rss.channel.link = link
@@ -42,10 +64,10 @@ module Jekyll
 				rss.channel.updated = date
 				rss.channel.copyright = date.year
 
-				count = [site.posts.count, 20].min
+				count = [@site.posts.count, 20].min
 
-				site.posts.reverse[0..count].each do |post|
-					post.render(site.layouts, site.site_payload)
+				@site.categories["journal"].reverse[0..count].each do |post|
+					post.render(@site.layouts, @site.site_payload)
 					rss.items.new_item do |item|
 						item.title = post.title
 						item.link = "#{link}#{post.url}"
@@ -56,27 +78,18 @@ module Jekyll
 				end
 			end
 
-        	# Create file and add to site
-        	name = "rss.xml"
-        	dest = File.join(site.source, "/feeds/")
-
-        	validate_dir(dest)
-
-        	File.open("#{dest}#{name}", "w") { |f| f.write(rss) }
-        	site.pages << Jekyll::Feed.new(site, site.source, "/feeds/", name)
-
+			# write file
+			filepath = File.join(dirpath, @name)
+			File.open(filepath, "w") { |f| f.write(rss) }
 		end
 
 
 		private
 
-    	# Validates directory exists, else creates directory
-    	def validate_dir(dir)
-      		FileUtils.mkdir_p(dir)
-    	end
-
-
+		def validate_dir(dir)
+			FileUtils.mkdir_p(dir)
+		end
 	end
 
-end
 
+end
